@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+  <head>
+    <title>Basic geo (svg)</title>
+    <style>
+      body {
+          font-family: "Helvetica Neue", Helvetica, sans-serif;
+          font-size: 14px;
+          color: #333;
+      }
+      html, body, #content svg {
+          width: 100%;
+          height: 100%;
+      }
+
+      #content {
+          margin-left: auto;
+          margin-right: auto;
+          width: 90%;
+          height: 90%;
+          padding: 1em;
+          border: #000 solid 1px;
+          background-color: #00a0f0
+      }
+
+      #content .map path {
+          fill: #a0f000;
+          stroke: #000;
+      }
+
+      #tooltip {
+          position: absolute;
+          z-index: 10;
+          visibility: hidden;
+          border: #000 solid 1px;
+          background: #fff;
+          padding: 1em 1em 1em 1em;
+          margin: 0;
+      }
+
+      #tooltip-name {
+          margin-top: 0;
+      }
+
+      #tooltip dl {
+          margin: 0;
+      }
+    </style>
+
+  </head>
+
+  <body>
+    <div id="content">
+      <svg>
+        <g class="map"></g>
+      </svg>
+    </div>
+
+    <div id="tooltip">
+      <h3 id="tooltip-name"></h3>
+      <dl>
+        <dt>Ozone</dt>
+        <dd id="tooltip-ozone"></dd>
+        <dt>NO2</dt>
+        <dd id="tooltip-no2"></dd>
+        <dt>Fine Particulate Matter</dt>
+        <dd id="tooltip-fpm"></dd>
+      </dl>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.2.2/d3.min.js"></script>
+    <script src="https://d3js.org/queue.v1.min.js"></script>
+    <script src="https://d3js.org/d3-geo-projection.v3.min.js"></script>
+
+    <script>
+      var contentSize = document.querySelector("#content svg").getBoundingClientRect()
+
+      var projection = d3.geoMercator()
+      var geoGenerator = d3.geoPath().projection(projection)
+
+      queue()
+    .defer(d3.json, "community_districts.geojson")
+    .defer(d3.json, "air-quality-by-community-district.json")
+    .await(function(error, nyc, data) {
+        var datamap = {}
+        for (i = 0; i < data.length; ++i) {
+            datamap[data[i]["Geo Join ID"]] = data[i]
+        }
+
+        for (i = 0; i < nyc.features.length; ++i) {
+            var feature = nyc.features[i]
+            var data = datamap[feature.properties.BoroCD]
+            if (data) {
+                feature.properties.name = data["Geo Place Name"]
+
+                ozone = data.data["Ozone (O3)"]
+                feature.properties.ozone = ozone.value + " " + ozone.units
+
+                fpm = data.data["Fine Particulate Matter (PM2.5)"]
+                feature.properties.fpm = fpm.value + " " + fpm.units
+
+                no2 = data.data["Nitrogen Dioxide (NO2)"]
+                feature.properties.no2 = no2.value + " " + no2.units
+            }
+        }
+
+        projection.fitExtent([[0, 0], [contentSize.width, contentSize.height]], nyc)
+
+        var tooltip = d3.select("#tooltip")
+        var name = d3.select("#tooltip-name")
+        var ozonedd = d3.select("#tooltip-ozone")
+        var fpmdd = d3.select("#tooltip-fpm")
+        var no2dd = d3.select("#tooltip-no2")
+
+        d3.select('#content g.map')
+            .selectAll('path')
+            .data(nyc.features)
+            .enter()
+            .append('path')
+            .attr('d', geoGenerator)
+            .on("mouseover", function(d, i){
+                if (d.properties.name) {
+                    name.text(d.properties.name)
+                    ozonedd.text(d.properties.ozone)
+                    fpmdd.text(d.properties.fpm)
+                    no2dd.text(d.properties.no2)
+                    return tooltip.style("visibility", "visible")
+                }
+            })
+            .on("mousemove", function(){
+                return tooltip.style(
+                    "top",
+                    (d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px")
+            })
+            .on("mouseout", function(){
+                return tooltip.style("visibility", "hidden")
+            })
+    })
+    </script>
+  </body>
+</html>
